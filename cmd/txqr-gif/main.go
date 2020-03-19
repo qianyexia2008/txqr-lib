@@ -47,6 +47,7 @@ func main() {
 
 func AnimatedGif(data []byte, imgSize int, fps, size int, lvl qr.RecoveryLevel) ([]byte, error) {
 	str := base64.StdEncoding.EncodeToString(data)
+    log.Println("base64 str=", str)
 	chunks, err := txqr.NewEncoder(size).Encode(str)
 	if err != nil {
 		return nil, fmt.Errorf("encode: %v", err)
