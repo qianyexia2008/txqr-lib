@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/divan/txqr"
+    txqr "github.com/qianyexia2008/txqr-lib"
 	"github.com/pyk/byten"
 )
 
