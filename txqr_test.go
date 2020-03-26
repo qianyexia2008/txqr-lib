@@ -9,106 +9,54 @@ import (
 )
 
 func TestTXQR(t *testing.T) {
-	var tests = []struct {
-		length  int
-		chunkSz int
-	}{
-		{10 * 1024, 100},
-		{10 * 1024, 200},
-		{10 * 1024, 300},
-		{10 * 1024, 400},
-		{10 * 1024, 500},
-		{10 * 1024, 650},
-		{10 * 1024, 800},
-		{10 * 1024, 900},
-		{10 * 1024, 1000},
+	str := strings.Repeat("hello, world!", 1000)
+	enc := NewEncoder(10)
+	chunks, err := enc.Encode(str)
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
 	}
 
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("%d, %d", test.length, test.chunkSz), func(t *testing.T) {
-			str := newTestData(test.length)
-			enc := NewEncoder(test.chunkSz)
-			chunks, err := enc.Encode(str)
-			if err != nil {
-				t.Fatalf("Encode failed: %v", err)
-			}
-
-			dec := NewDecoder()
-			for !dec.IsCompleted() {
-				for _, chunk := range chunks {
-					err = dec.Decode(chunk)
-					if err != nil {
-						t.Fatalf("Decode failed: %v", err)
-					}
-				}
-			}
-			got := dec.Data()
-			if got != str {
-				t.Fatalf("Expected '%s', but got '%s'", str, got)
-			}
-		})
+	dec := NewDecoder()
+	for _, chunk := range chunks {
+		err = dec.Decode(chunk)
+		if err != nil {
+			t.Fatalf("Decode failed: %v", err)
+		}
+	}
+	got := dec.Data()
+	if got != str {
+		t.Fatalf("Expected '%s', but got '%s'", str, got)
 	}
 }
 
 // TestTXQRErasures tests information decoding over erasure channels
 // with different erasure probabilities.
 func TestTXQRErasures(t *testing.T) {
-	var tests = []struct {
-		length  int
-		chunkSz int
-		fps     int
-	}{
-		{10 * 1024, 100, 3},
-		{10 * 1024, 300, 3},
-		{10 * 1024, 500, 3},
-		{10 * 1024, 650, 3},
-		{10 * 1024, 800, 3},
-		{10 * 1024, 800, 3},
-		{10 * 1024, 100, 6},
-		{10 * 1024, 300, 6},
-		{10 * 1024, 500, 6},
-		{10 * 1024, 800, 6},
-		{10 * 1024, 800, 6},
-		{10 * 1024, 100, 9},
-		{10 * 1024, 300, 9},
-		{10 * 1024, 500, 9},
-		{10 * 1024, 800, 9},
-		{10 * 1024, 800, 9},
+	str := strings.Repeat("hello, world!", 1000)
+	enc := NewEncoder(10)
+	chunks, err := enc.Encode(str)
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
 	}
 
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("%d, %d", test.length, test.chunkSz), func(t *testing.T) {
-			str := newTestData(test.length)
-			enc := NewEncoder(test.chunkSz)
-			chunks, err := enc.Encode(str)
+	dec := NewDecoder()
+	now := time.Now()
+	for !dec.IsCompleted() {
+		// erase new set of chunks every time
+		toDel := chunksCountToDelete(len(chunks))
+		transmitted := eraseChunks(chunks, toDel)
+		for _, chunk := range transmitted {
+			err = dec.Decode(chunk)
 			if err != nil {
-				t.Fatalf("Encode failed: %v", err)
+				t.Fatalf("Decode failed: %v", err)
 			}
-
-			dec := NewDecoder()
-			now := time.Now()
-			for !dec.IsCompleted() {
-				// erase new set of chunks every time
-				toDel := chunksCountToDelete(len(chunks))
-				transmitted := eraseChunks(chunks, toDel)
-				for _, chunk := range transmitted {
-					err = dec.Decode(chunk)
-					if err != nil {
-						t.Fatalf("Decode failed: %v", err)
-					}
-					if dec.IsCompleted() {
-						break
-					}
-				}
-				time.Sleep(1 * time.Second / time.Duration(test.fps))
-			}
-			duration := time.Since(now)
-			t.Logf("[%db/%d, %dfps] took: %v", test.length, test.chunkSz, test.fps, duration)
-			got := dec.Data()
-			if got != str {
-				t.Fatalf("Expected '%s', but got '%s'", str, got)
-			}
-		})
+		}
+	}
+	duration := time.Since(now)
+	t.Logf("Sending over erasure channel took: %v", duration)
+	got := dec.Data()
+	if got != str {
+		t.Fatalf("Expected '%s', but got '%s'", str, got)
 	}
 }
 
@@ -133,7 +81,7 @@ func eraseChunks(chunks []string, n int) []string {
 // chunksCountToDelete returns random number of chunks for deletion,
 // using normal distribution with 2 std deviation and N/3 as a mean.
 func chunksCountToDelete(n int) int {
-	mean := float64(n / 2)
+	mean := float64(n / 3)
 	dev := 2.0
 	del := int(rand.NormFloat64()*dev + mean)
 	if del < 0 {
@@ -153,8 +101,8 @@ func BenchmarkTXQREncode(b *testing.B) {
 		{100, 10},
 		{1000, 10},
 		{1000, 100},
-		{10 * 1024, 100},
-		{10 * 1024, 1000},
+		{10000, 100},
+		{10000, 1000},
 	}
 
 	for _, test := range tests {
@@ -176,8 +124,8 @@ func BenchmarkTXQRDecode(b *testing.B) {
 		{100, 10},
 		{1000, 10},
 		{1000, 100},
-		{10 * 1024, 100},
-		{10 * 1024, 1000},
+		{10000, 100},
+		{10000, 1000},
 	}
 
 	for _, test := range tests {
@@ -208,9 +156,10 @@ func BenchmarkTXQRErasures(b *testing.B) {
 		length  int
 		chunkSz int
 	}{
-		{10 * 1024, 10},
-		{10 * 1024, 100},
-		{10 * 1024, 1000},
+		{10000, 1},
+		{10000, 10},
+		{10000, 100},
+		{10000, 1000},
 	}
 
 	for _, test := range tests {
@@ -238,13 +187,4 @@ func BenchmarkTXQRErasures(b *testing.B) {
 			}
 		})
 	}
-}
-
-func newTestData(size int) string {
-	data := make([]byte, size)
-	_, err := rand.Read(data)
-	if err != nil {
-		panic(fmt.Sprintf("Can't generate rand data: %v", err))
-	}
-	return string(data)
 }
