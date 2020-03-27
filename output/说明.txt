@@ -1,0 +1,11 @@
+txqr-gif.exe -o out.gif  -size 600 -split 450 -fps 5  file.jpg
+
+txqr-gif -o out.gif -size 600 -split 450 -delay 200ms file.jpg
+
+txqr-gif -o out.gif -size 300 -split 100 -fps 5 file.jpg
+
+
+将file.jpg转为out.gif动态播放的二维码：
+-size int   QR code size(default 300)二维码图片大小
+-split int  Chunk size for data split per frame(default 100)
+-fps int   Animation FPS (default 5)
